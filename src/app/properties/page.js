@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { fetchHostels } from '../../utils/api';
 import {
     Building2,
     Search,
@@ -22,62 +23,58 @@ import {
 } from 'lucide-react';
 import styles from './page.module.css';
 
-const dummyProperties = [
-    {
-        id: 1,
-        name: 'Sunset Heights Hostel',
-        category: 'Hostel',
-        address: 'Koramangala, Bangalore',
-        totalRooms: 45,
-        availableRooms: 12,
-        rating: 4.8,
-        status: 'Active',
-        image: 'https://images.unsplash.com/photo-1555854817-5b2247a8175f?w=400&h=300&fit=crop',
-    },
-    {
-        id: 2,
-        name: 'TechPark Corporate PG',
-        category: 'PG',
-        address: 'Whitefield, Bangalore',
-        totalRooms: 80,
-        availableRooms: 5,
-        rating: 4.5,
-        status: 'Active',
-        image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=400&h=300&fit=crop',
-    },
-    {
-        id: 3,
-        name: 'Urban Living PG',
-        category: 'PG',
-        address: 'HSR Layout, Bangalore',
-        totalRooms: 30,
-        availableRooms: 0,
-        rating: 4.2,
-        status: 'Full',
-        image: 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?w=400&h=300&fit=crop',
-    },
-    {
-        id: 4,
-        name: 'Elite Boys Hostel',
-        category: 'Hostel',
-        address: 'Indiranagar, Bangalore',
-        totalRooms: 50,
-        availableRooms: 15,
-        rating: 4.7,
-        status: 'Active',
-        image: 'https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?w=400&h=300&fit=crop',
-    }
-];
+// API Data mapping function
+const transformPropertyData = (item) => ({
+    id: item.hostel_id,
+    name: item.hostel_name || 'Unnamed Property',
+    category: 'Hostel', // Default as not provided by API
+    address: item.address || 'Address not available',
+    totalRooms: 50, // Placeholder
+    availableRooms: 10, // Placeholder
+    rating: 4.5, // Placeholder
+    status: 'Active', // Placeholder
+    image: `https://images.unsplash.com/photo-1555854817-5b2247a8175f?w=400&h=300&fit=crop&q=${item.hostel_id}`,
+});
 
 export default function PropertiesPage() {
+    const [properties, setProperties] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeMenuId, setActiveMenuId] = useState(null);
     const [deleteId, setDeleteId] = useState(null);
     const [viewMode, setViewMode] = useState('grid');
     const [showLayoutMenu, setShowLayoutMenu] = useState(false);
     const [displayLimit, setDisplayLimit] = useState(6);
+    useEffect(() => {
+        const loadProperties = async () => {
+            try {
+                setLoading(true);
+                const response = await fetchHostels();
+                console.log('Properties API Response:', response);
 
-    const filteredProperties = dummyProperties.filter(p =>
+                if ((response.success || response.status === true || response.status === 'success') && response.data) {
+                    const transformedData = response.data.map(transformPropertyData);
+                    setProperties(transformedData);
+                } else if (response.data && Array.isArray(response.data)) {
+                    // Fallback if success/status is missing but data is present
+                    const transformedData = response.data.map(transformPropertyData);
+                    setProperties(transformedData);
+                } else {
+                    throw new Error(response.message || 'Failed to load properties');
+                }
+            } catch (err) {
+                setError(err.message);
+                console.error('Error fetching hostels:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadProperties();
+    }, []);
+
+    const filteredProperties = properties.filter(p =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.address.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -166,13 +163,27 @@ export default function PropertiesPage() {
                         <span>Filters</span>
                     </button>
                     <div className={styles.viewToggle}>
-                        <span className={styles.viewLabel}>Total: {dummyProperties.length} Properties</span>
+                        <span className={styles.viewLabel}>Total: {properties.length} Properties</span>
                     </div>
                 </div>
             </div>
 
             {/* Content section */}
-            {viewMode === 'grid' ? (
+            {loading ? (
+                <div className={styles.loadingContainer}>
+                    <div className={styles.loader}></div>
+                    <p>Loading properties...</p>
+                </div>
+            ) : error ? (
+                <div className={styles.errorContainer}>
+                    <AlertTriangle size={48} className={styles.errorIcon} />
+                    <h2 className={styles.errorTitle}>Oops! Something went wrong</h2>
+                    <p className={styles.errorText}>{error}</p>
+                    <button className={styles.retryButton} onClick={() => window.location.reload()}>
+                        Retry
+                    </button>
+                </div>
+            ) : viewMode === 'grid' ? (
                 <div className={styles.grid}>
                     {visibleProperties.map((property) => (
                         <div key={property.id} className={styles.card}>
