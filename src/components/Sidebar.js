@@ -20,6 +20,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Hotel,
+    FileText,
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
 
@@ -55,6 +56,7 @@ const menuGroups = [
         items: [
             { label: 'Reports', icon: BarChart3, href: '/reports' },
             { label: 'Settings', icon: Settings, href: '/settings' },
+            { label: 'Form Fields', icon: FileText, href: '/form-fields' },
         ],
     },
 ];
