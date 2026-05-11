@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
     Plus, Search, Filter, User, Phone, Mail,
@@ -9,14 +9,51 @@ import {
     UserCircle, LayoutGrid, Table, Check
 } from 'lucide-react';
 import styles from './page.module.css';
-import { dummyCustomers } from './data';
+import { fetchStudents } from '@/utils/api';
 
 export default function CustomersPage() {
     const [searchTerm, setSearchTerm] = useState('');
-    const [customers, setCustomers] = useState(dummyCustomers);
+    const [customers, setCustomers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [viewMode, setViewMode] = useState('grid');
     const [showLayoutMenu, setShowLayoutMenu] = useState(false);
     const [activeMenuId, setActiveMenuId] = useState(null);
+
+    useEffect(() => {
+        loadStudents();
+    }, []);
+
+    const loadStudents = async () => {
+        setLoading(true);
+        try {
+            const response = await fetchStudents({ limit: 100 });
+            if (response.settings.success) {
+                // Map API data to UI structure
+                const mapped = response.data.students.map(s => ({
+                    id: s.student_id ? String(s.student_id) : 'N/A',
+                    name: `${s.first_name} ${s.last_name}`,
+                    email: s.email,
+                    mobile: s.phone_number,
+                    propertyName: s.propertyName,
+                    roomNumber: s.roomNumber,
+                    bedNumber: s.bedNumber,
+                    status: s.status,
+                    joiningDate: s.joiningDate,
+                    customerType: s.gender === 'Male' ? 'Student (M)' : 'Student (F)',
+                    rentAmount: 5000, // Placeholder or fetch from stays/rooms
+                }));
+                setCustomers(mapped);
+            } else {
+                setCustomers([]);
+            }
+        } catch (err) {
+            console.error(err);
+            setError('Failed to load residents');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const filteredCustomers = customers.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -90,7 +127,22 @@ export default function CustomersPage() {
                 </button>
             </div>
 
-            {viewMode === 'grid' ? (
+            {loading ? (
+                <div style={{ textAlign: 'center', padding: '100px' }}>
+                    <div className="spinner">Loading...</div>
+                </div>
+            ) : error ? (
+                <div style={{ textAlign: 'center', padding: '100px', color: '#ef4444' }}>
+                    <p>{error}</p>
+                    <button onClick={loadStudents} className={styles.addButton} style={{ marginTop: '16px' }}>Retry</button>
+                </div>
+            ) : filteredCustomers.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '100px', background: 'white', borderRadius: '24px' }}>
+                    <UserCircle size={48} color="#94a3b8" style={{ marginBottom: '16px' }} />
+                    <h3 style={{ color: '#1e293b' }}>No residents found</h3>
+                    <p style={{ color: '#64748b' }}>Try adjusting your search or add a new customer.</p>
+                </div>
+            ) : viewMode === 'grid' ? (
                 <div className={styles.grid}>
                     {filteredCustomers.map(customer => (
                         <div key={customer.id} className={styles.customerCard}>

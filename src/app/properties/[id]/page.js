@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -23,27 +23,17 @@ import {
     Image as ImageIcon,
     Trash2,
     AlertTriangle,
-    CheckCircle2
+    CheckCircle2,
+    Loader2
 } from 'lucide-react';
 import styles from './page.module.css';
+import { BASE_URL, getHeaders } from '@/utils/api';
+import { useToast } from '@/context/ToastContext';
 
-// Dummy data for a single property
-const propertyData = {
-    id: 1,
-    name: 'Sunset Heights Hostel',
-    category: 'Hostel',
-    address: 'Koramangala, 4th Block, Bangalore',
-    city: 'Bangalore',
-    state: 'Karnataka',
-    pincode: '560034',
-    description: 'A premium corporate hostel designed for young professionals. Featuring high-speed internet, 4-tier security, and fully furnished rooms with daily housekeeping services.',
+// Fallback dummy data for things not yet in API
+const fallbackData = {
     rating: 4.8,
     status: 'Active',
-    images: [
-        'https://images.unsplash.com/photo-1555854817-5b2247a8175f?w=800&h=450&fit=crop',
-        'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?w=400&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1512918721675-ed5a9ecdebfd?w=400&h=300&fit=crop'
-    ],
     stats: [
         { label: 'Occupancy', value: '78%', icon: Users, color: '#10b981' },
         { label: 'Revenue (MTD)', value: '₹1.2L', icon: TrendingUp, color: '#1e88e5' },
@@ -63,16 +53,44 @@ const propertyData = {
     ]
 };
 
-// Placeholder image function
 const getPlaceholder = (text = 'Image Not Available') =>
     `https://placehold.co/800x450/e2e8f0/64748b?text=${encodeURIComponent(text)}`;
 
 export default function PropertyDetailPage({ params }) {
     const router = useRouter();
+    const showToast = useToast();
     const { id } = use(params);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [activeOperation, setActiveOperation] = useState(null);
+    
+    const [loading, setLoading] = useState(true);
+    const [dbData, setDbData] = useState(null);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!id) return;
+        const fetchDetails = async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(`${BASE_URL}/core/hostle-details/${id}`, {
+                    method: 'GET',
+                    headers: getHeaders(),
+                });
+                const responseData = await res.json();
+                if (!res.ok || responseData?.settings?.success === 0) {
+                    throw new Error(responseData?.settings?.message || 'Failed to fetch property details');
+                }
+                const hostel = Array.isArray(responseData.data) ? responseData.data[0] : responseData.data;
+                setDbData(hostel);
+            } catch (err) {
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDetails();
+    }, [id]);
 
     const handleOperation = (op) => {
         setActiveOperation(op);
@@ -80,9 +98,36 @@ export default function PropertyDetailPage({ params }) {
     };
 
     const confirmDelete = () => {
-        alert(`Property ${id} deleted (Mock)`);
+        showToast(`Property ${id} deleted`, 'success');
         router.push('/properties');
     };
+
+    if (loading) {
+        return (
+            <div className={styles.container} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+                <div style={{ textAlign: 'center', color: '#6b7280' }}>
+                    <Loader2 size={40} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                    <p>Loading property details...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error || !dbData) {
+        return (
+            <div className={styles.container} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+                <div style={{ textAlign: 'center', color: '#ef4444' }}>
+                    <p style={{ fontSize: '18px', fontWeight: 600 }}>Failed to load property</p>
+                    <p style={{ marginTop: 8, color: '#6b7280' }}>{error}</p>
+                    <Link href="/properties" style={{ marginTop: 16, display: 'inline-block', color: '#6366f1' }}>← Back to Properties</Link>
+                </div>
+            </div>
+        );
+    }
+
+    const images = (dbData.attachments && dbData.attachments.length > 0) 
+        ? dbData.attachments.map(att => `${BASE_URL}/public/upload/attachments_local/${att.file_path}`) 
+        : [];
 
     return (
         <div className={styles.container}>
@@ -95,7 +140,7 @@ export default function PropertyDetailPage({ params }) {
                 <div className={styles.breadcrumbs}>
                     <span>Properties</span>
                     <ChevronRight size={14} />
-                    <span className={styles.activePath}>{propertyData.name}</span>
+                    <span className={styles.activePath}>{dbData.hostel_name}</span>
                 </div>
             </div>
 
@@ -103,14 +148,14 @@ export default function PropertyDetailPage({ params }) {
             <div className={styles.header}>
                 <div className={styles.headerTitle}>
                     <div className={styles.titleRow}>
-                        <h1 className={styles.name}>{propertyData.name}</h1>
-                        <div className={`${styles.statusBadge} ${styles[propertyData.status.toLowerCase()]}`}>
-                            {propertyData.status}
+                        <h1 className={styles.name}>{dbData.hostel_name}</h1>
+                        <div className={`${styles.statusBadge} ${styles[fallbackData.status.toLowerCase()]}`}>
+                            {fallbackData.status}
                         </div>
                     </div>
                     <div className={styles.location}>
                         <MapPin size={16} />
-                        <span>{propertyData.address}</span>
+                        <span>{dbData.address ? `${dbData.address}, ` : ''}{dbData.city}, {dbData.state} {dbData.pincode}</span>
                     </div>
                 </div>
                 <div className={styles.headerActions}>
@@ -149,7 +194,7 @@ export default function PropertyDetailPage({ params }) {
 
             {/* Stats Grid */}
             <div className={styles.statsGrid}>
-                {propertyData.stats.map((stat, i) => (
+                {fallbackData.stats.map((stat, i) => (
                     <div key={i} className={styles.statCard}>
                         <div className={styles.statIcon} style={{ background: `${stat.color}15`, color: stat.color }}>
                             <stat.icon size={20} />
@@ -172,25 +217,27 @@ export default function PropertyDetailPage({ params }) {
                         <div className={styles.gallery}>
                             <div className={styles.mainImage}>
                                 <img
-                                    src={propertyData.images[0] || getPlaceholder('Main Property Image')}
-                                    alt={propertyData.name}
+                                    src={images[0] || getPlaceholder('Main Property Image')}
+                                    alt={dbData.hostel_name}
                                 />
                             </div>
                             <div className={styles.thumbnails}>
-                                {propertyData.images.slice(1).map((img, i) => (
+                                {images.slice(1).map((img, i) => (
                                     <div key={i} className={styles.thumb}>
                                         <img src={img || getPlaceholder(`View ${i + 2}`)} alt="Property view" />
                                     </div>
                                 ))}
-                                <div className={styles.addThumb}>
-                                    <ImageIcon size={20} />
-                                    <span>+2 more</span>
-                                </div>
+                                {images.length > 5 && (
+                                    <div className={styles.addThumb}>
+                                        <ImageIcon size={20} />
+                                        <span>+{images.length - 5} more</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <div className={styles.description}>
                             <h3>About Property</h3>
-                            <p>{propertyData.description}</p>
+                            <p>{dbData.description || 'No description provided.'}</p>
                         </div>
                     </div>
 
@@ -211,7 +258,7 @@ export default function PropertyDetailPage({ params }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {propertyData.rooms.map((room, i) => (
+                                    {fallbackData.rooms.map((room, i) => (
                                         <tr key={i}>
                                             <td className={styles.roomId}>{room.id}</td>
                                             <td>{room.type}</td>
@@ -242,7 +289,7 @@ export default function PropertyDetailPage({ params }) {
                             <button className={styles.linkBtn}>Manage</button>
                         </div>
                         <div className={styles.staffList}>
-                            {propertyData.staff.map((p, i) => (
+                            {fallbackData.staff.map((p, i) => (
                                 <div key={i} className={styles.staffItem}>
                                     <div className={styles.staffAvatar}>
                                         {p.image ? <img src={p.image} alt={p.name} /> : <User size={20} />}
@@ -300,7 +347,7 @@ export default function PropertyDetailPage({ params }) {
                         </div>
                         <h2 className={styles.modalTitle}>Delete Property?</h2>
                         <p className={styles.modalText}>
-                            Warning: This will permanently delete <strong>{propertyData.name}</strong> and all associated data. This action cannot be undone.
+                            Warning: This will permanently delete <strong>{dbData.hostel_name}</strong> and all associated data. This action cannot be undone.
                         </p>
                         <div className={styles.modalActions}>
                             <button className={styles.cancelModalBtn} onClick={() => setIsDeleting(false)}>

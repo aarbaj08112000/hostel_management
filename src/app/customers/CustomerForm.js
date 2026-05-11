@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import styles from './form.module.css';
 import CustomSelect from '../../components/CustomSelect';
+import { useToast } from '../../context/ToastContext';
 
 const initialFormData = {
     name: '', mobile: '', altMobile: '', email: '', gender: 'Male', dob: '', maritalStatus: 'Single',
@@ -26,6 +27,7 @@ const initialFormData = {
 };
 
 export default function CustomerForm({ initialData = null, title = "Register New Customer" }) {
+    const showToast = useToast();
     const [formData, setFormData] = useState(initialFormData);
     const [activeTab, setActiveTab] = useState(1);
 
@@ -81,7 +83,7 @@ export default function CustomerForm({ initialData = null, title = "Register New
     const handleSubmit = (e) => {
         e.preventDefault();
         console.log('Submitting Customer Data:', formData);
-        alert('Customer data saved successfully!');
+        showToast('Customer data saved successfully!', 'success');
     };
 
     const tabs = [

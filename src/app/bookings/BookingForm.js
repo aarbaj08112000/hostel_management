@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import styles from '../customers/form.module.css';
 import CustomSelect from '../../components/CustomSelect';
+import { useToast } from '../../context/ToastContext';
 
 const initialFormData = {
     customerName: '', mobile: '', email: '',
@@ -26,6 +27,7 @@ const initialFormData = {
 
 export default function BookingForm({ initialData = null, title = "New Booking Registration" }) {
     const router = useRouter();
+    const showToast = useToast();
     const [formData, setFormData] = useState(initialFormData);
     const [activeTab, setActiveTab] = useState(1);
 
@@ -52,7 +54,7 @@ export default function BookingForm({ initialData = null, title = "New Booking R
     const handleSubmit = (e) => {
         e.preventDefault();
         console.log('Submitting Booking Data:', formData);
-        alert('Booking data saved successfully!');
+        showToast('Booking data saved successfully!', 'success');
         router.push('/bookings');
     };
 

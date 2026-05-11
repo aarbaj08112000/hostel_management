@@ -24,6 +24,7 @@ import {
     DollarSign
 } from 'lucide-react';
 import styles from '../../new/page.module.css';
+import { useToast } from '../../../../context/ToastContext';
 
 const tabs = [
     { id: 1, label: 'Personal Info', icon: <User size={16} /> },
@@ -35,6 +36,7 @@ const tabs = [
 export default function EditHousekeeperPage({ params: paramsPromise }) {
     const params = use(paramsPromise);
     const router = useRouter();
+    const showToast = useToast();
     const { id } = params;
 
     const [activeTab, setActiveTab] = useState(1);
@@ -69,7 +71,7 @@ export default function EditHousekeeperPage({ params: paramsPromise }) {
     const handleSubmit = (e) => {
         e.preventDefault();
         console.log('Updating Housekeeper:', formData);
-        alert('Housekeeper details updated successfully!');
+        showToast('Housekeeper details updated successfully!', 'success');
         router.push('/housekeepers');
     };
 

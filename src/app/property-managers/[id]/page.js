@@ -1,16 +1,43 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Phone, User, ArrowLeft } from 'lucide-react';
 import Header from '@/components/Header';
-import { dummyManagers } from '../data';
+import { fetchPropertyManagerDetails } from '@/utils/api';
 import styles from './page.module.css';
 
 export default function PropertyManagerDetails() {
     const params = useParams();
-    const id = parseInt(params.id);
-    const manager = dummyManagers.find(m => m.id === id);
+    const id = params.id;
+    
+    const [manager, setManager] = useState(null);
+    const [isFetching, setIsFetching] = useState(true);
+
+    useEffect(() => {
+        const loadDetail = async () => {
+            try {
+                const res = await fetchPropertyManagerDetails(id);
+                const data = res?.data?.manager_details || res?.data;
+                if (data && typeof data === 'object') {
+                    setManager(data);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            setIsFetching(false);
+        };
+        if (id) loadDetail();
+    }, [id]);
+
+    if (isFetching) {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+                <h2>Loading manager details...</h2>
+            </div>
+        );
+    }
 
     if (!manager) {
         return (
@@ -22,6 +49,12 @@ export default function PropertyManagerDetails() {
             </div>
         );
     }
+
+    const avatarImage = manager.attachments && manager.attachments.length > 0 
+        ? `http://localhost:3009/public/upload/attachments_local/${manager.attachments[0].file_path}` 
+        : null;
+        
+    const assignedProps = Array.isArray(manager.assigned_properties) ? manager.assigned_properties : [];
 
     return (
         <main>
@@ -35,8 +68,8 @@ export default function PropertyManagerDetails() {
                     <div className={styles.profileCover}>
                         <div className={styles.coverBg}></div>
                         <div className={styles.avatarContainer}>
-                            {manager.image ? (
-                                <img src={manager.image} alt={manager.name} className={styles.profileHeroAvatar} />
+                            {avatarImage ? (
+                                <img src={avatarImage} alt={manager.first_name} className={styles.profileHeroAvatar} />
                             ) : (
                                 <div className={styles.profileHeroPlaceholder}>
                                     <User size={60} />
@@ -46,9 +79,9 @@ export default function PropertyManagerDetails() {
                     </div>
 
                     <div className={styles.profileHeroInfo}>
-                        <h2 className={styles.heroName}>{manager.name}</h2>
+                        <h2 className={styles.heroName}>{`${manager.first_name || ''} ${manager.last_name || ''}`}</h2>
                         <span className={`${styles.heroBadge} ${styles[manager.status?.toLowerCase() || 'inactive']}`}>
-                            {manager.status}
+                            {manager.status || 'Inactive'}
                         </span>
                     </div>
 
@@ -56,28 +89,29 @@ export default function PropertyManagerDetails() {
                         <div className={styles.detailCard}>
                             <h4 className={styles.detailTitle}>Personal & Contact</h4>
                             <div className={styles.contactList}>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>Email:</span> <span className={styles.infoVal}>{manager.email}</span></div>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>Phone:</span> <span className={styles.infoVal}>{manager.phone}</span></div>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>DOB:</span> <span className={styles.infoVal}>{manager.dob || 'N/A'}</span></div>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>City:</span> <span className={styles.infoVal}>{manager.currentCity || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Email:</span> <span className={styles.infoVal}>{manager.email || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Phone:</span> <span className={styles.infoVal}>{manager.phone || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>DOB:</span> <span className={styles.infoVal}>{manager.dob ? new Date(manager.dob).toLocaleDateString() : 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>City:</span> <span className={styles.infoVal}>{manager.city || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Gender:</span> <span className={styles.infoVal}>{manager.gender || 'N/A'}</span></div>
                             </div>
                         </div>
 
                         <div className={styles.detailCard}>
                             <h4 className={styles.detailTitle}>Employment</h4>
                             <div className={styles.contactList}>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>Emp ID:</span> <span className={styles.infoVal}>{manager.employeeId || 'N/A'}</span></div>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>Role:</span> <span className={styles.infoVal}>{manager.jobRole || 'Property Manager'}</span></div>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>Shift:</span> <span className={styles.infoVal}>{manager.workShift || 'Morning'}</span></div>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>Joined:</span> <span className={styles.infoVal}>{manager.joiningDate || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Emp ID:</span> <span className={styles.infoVal}>{manager.employee_id || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Role:</span> <span className={styles.infoVal}>{manager.role || 'Property Manager'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Designation:</span> <span className={styles.infoVal}>{manager.designation || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Joined:</span> <span className={styles.infoVal}>{manager.joining_date ? new Date(manager.joining_date).toLocaleDateString() : 'N/A'}</span></div>
                             </div>
                         </div>
 
                         <div className={styles.detailCard}>
                             <h4 className={styles.detailTitle}>Assigned Properties</h4>
                             <div className={styles.propertyTagsList}>
-                                {manager.assignedProperties?.length > 0 ? (
-                                    manager.assignedProperties.map((prop, i) => (
+                                {assignedProps.length > 0 ? (
+                                    assignedProps.map((prop, i) => (
                                         <span key={i} className={styles.heroPropTag}>{prop}</span>
                                     ))
                                 ) : (
@@ -87,11 +121,11 @@ export default function PropertyManagerDetails() {
                         </div>
 
                         <div className={styles.detailCard}>
-                            <h4 className={styles.detailTitle}>Emergency Contact</h4>
+                            <h4 className={styles.detailTitle}>Other Information</h4>
                             <div className={styles.contactList}>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>Name:</span> <span className={styles.infoVal}>{manager.emergencyContactName || 'N/A'}</span></div>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>Relation:</span> <span className={styles.infoVal}>{manager.emergencyRelationship || 'N/A'}</span></div>
-                                <div className={styles.infoRow}><span className={styles.infoLabel}>Mobile:</span> <span className={styles.infoVal}>{manager.emergencyMobile || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Alt Phone:</span> <span className={styles.infoVal}>{manager.alt_phone || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Address:</span> <span className={styles.infoVal}>{manager.address || 'N/A'}</span></div>
+                                <div className={styles.infoRow}><span className={styles.infoLabel}>Salary:</span> <span className={styles.infoVal}>{manager.salary ? `₹${manager.salary}` : 'N/A'}</span></div>
                             </div>
                         </div>
                     </div>

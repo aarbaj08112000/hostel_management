@@ -11,6 +11,7 @@ import {
 import formStyles from '../customers/form.module.css';
 import { visitorPurposes } from './data';
 import CustomSelect from '../../components/CustomSelect';
+import { useToast } from '../../context/ToastContext';
 
 const tabs = [
     { id: 1, label: 'Visitor Profile', icon: <UserCircle size={16} /> },
@@ -20,6 +21,7 @@ const tabs = [
 
 export default function VisitorForm({ initialData = null, isEdit = false }) {
     const router = useRouter();
+    const showToast = useToast();
     const [activeTab, setActiveTab] = useState(1);
     const [formData, setFormData] = useState({
         name: '',
@@ -46,7 +48,7 @@ export default function VisitorForm({ initialData = null, isEdit = false }) {
     const handleSubmit = (e) => {
         e.preventDefault();
         console.log(isEdit ? 'Updating visitor:' : 'Logging visitor:', formData);
-        alert(isEdit ? 'Visitor details updated successfully!' : 'Visitor checked in successfully!');
+        showToast(isEdit ? 'Visitor details updated successfully!' : 'Visitor checked in successfully!', 'success');
         router.push('/visitors');
     };
 

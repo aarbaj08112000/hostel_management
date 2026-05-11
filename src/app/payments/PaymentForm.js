@@ -12,6 +12,7 @@ import {
 import formStyles from '../customers/form.module.css';
 import { paymentMethods, paymentTypes } from './data';
 import CustomSelect from '../../components/CustomSelect';
+import { useToast } from '../../context/ToastContext';
 
 const tabs = [
     { id: 1, label: 'Payer Information', icon: <User size={16} /> },
@@ -21,6 +22,7 @@ const tabs = [
 
 export default function PaymentForm({ initialData = null, isEdit = false }) {
     const router = useRouter();
+    const showToast = useToast();
     const [activeTab, setActiveTab] = useState(1);
     const [formData, setFormData] = useState({
         customerName: '',
@@ -53,7 +55,7 @@ export default function PaymentForm({ initialData = null, isEdit = false }) {
     const handleSubmit = (e) => {
         e.preventDefault();
         console.log(isEdit ? 'Updating payment:' : 'Recording payment:', formData);
-        alert(isEdit ? 'Payment record updated successfully!' : 'Payment collected successfully!');
+        showToast(isEdit ? 'Payment record updated successfully!' : 'Payment collected successfully!', 'success');
         router.push('/payments');
     };
 

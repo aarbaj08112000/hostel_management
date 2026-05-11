@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Search,
     Plus,
@@ -24,11 +24,14 @@ import {
 import styles from './page.module.css';
 
 import { useRouter } from 'next/navigation';
-import { dummyManagers } from './data';
+import { fetchPropertyManagers, deletePropertyManager } from '../../utils/api';
+import { useToast } from '../../context/ToastContext';
 
 export default function PropertyManagers() {
     const router = useRouter();
-    const [managers, setManagers] = useState(dummyManagers);
+    const showToast = useToast();
+    const [managers, setManagers] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deletingManager, setDeletingManager] = useState(null);
@@ -37,11 +40,32 @@ export default function PropertyManagers() {
     const [showLayoutMenu, setShowLayoutMenu] = useState(false);
     const [displayLimit, setDisplayLimit] = useState(6);
 
-    const filteredManagers = managers.filter(manager =>
-        manager.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        manager.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        manager.assignedProperties.some(p => p.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    useEffect(() => {
+        loadManagers();
+    }, []);
+
+    const loadManagers = async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetchPropertyManagers({ limit: 100 });
+            const dataPool = res?.data?.property_managers || (Array.isArray(res?.data) ? res.data : []);
+            setManagers(dataPool);
+        } catch (error) {
+            console.error('Failed to fetch managers:', error);
+        }
+        setIsLoading(false);
+    };
+
+    const getFullName = (m) => `${m.first_name || ''} ${m.last_name || ''}`.trim();
+
+    const filteredManagers = managers.filter(manager => {
+        const query = searchTerm.toLowerCase();
+        const fullName = getFullName(manager).toLowerCase();
+        const props = Array.isArray(manager.assigned_properties) ? manager.assigned_properties : [];
+        return fullName.includes(query) ||
+               (manager.email || '').toLowerCase().includes(query) ||
+               props.some(p => p.toLowerCase().includes(query));
+    });
 
     const visibleManagers = filteredManagers.slice(0, displayLimit);
 
@@ -51,13 +75,13 @@ export default function PropertyManagers() {
     };
 
     const handleEditManager = (manager) => {
-        router.push(`/property-managers/edit/${manager.id}`);
+        router.push(`/property-managers/edit/${manager.manager_id}`);
         setActiveMenuId(null);
     };
 
     const handleViewProfile = (manager) => {
         setActiveMenuId(null);
-        router.push(`/property-managers/${manager.id}`);
+        router.push(`/property-managers/${manager.manager_id}`);
     };
 
     const handleDeleteClick = (manager) => {
@@ -66,11 +90,21 @@ export default function PropertyManagers() {
         setActiveMenuId(null);
     };
 
-    const confirmDelete = () => {
-        setManagers(managers.filter(m => m.id !== deletingManager.id));
+    const confirmDelete = async () => {
+        try {
+            await deletePropertyManager(deletingManager.manager_id);
+            setManagers(managers.filter(m => m.manager_id !== deletingManager.manager_id));
+        } catch (error) {
+            console.error('Delete failed:', error);
+            showToast('Failed to delete manager', 'error');
+        }
         setShowDeleteModal(false);
         setDeletingManager(null);
     };
+
+    if (isLoading) {
+        return <div className={styles.container} style={{ textAlign:'center', paddingTop:'50px' }}>Loading Managers...</div>;
+    }
 
     return (
         <div className={styles.container}>
@@ -168,32 +202,37 @@ export default function PropertyManagers() {
                 </button>
             </div>
 
-            {/* Managers Grid */}
             {/* Content Section */}
             {viewMode === 'grid' ? (
                 <div className={styles.grid}>
-                    {visibleManagers.map((manager) => (
-                        <div key={manager.id} className={styles.managerCard}>
-                            {/* ... existing card content ... */}
+                    {visibleManagers.map((manager) => {
+                        const avatarImage = manager.attachments?.length > 0
+                            ? `http://localhost:3009/public/upload/attachments_local/${manager.attachments[0].file_path}`
+                            : null;
+                        const props = Array.isArray(manager.assigned_properties) ? manager.assigned_properties : [];
+                        const statusClass = manager.status === 'Active' ? styles.active : manager.status === 'On Leave' ? styles.pending : styles.inactive;
+
+                        return (
+                        <div key={manager.manager_id} className={styles.managerCard}>
                             <div className={styles.cardHeader}>
                                 <div className={styles.avatarWrapper}>
-                                    {manager.image ? (
-                                        <img src={manager.image} alt={manager.name} className={styles.avatar} />
+                                    {avatarImage ? (
+                                        <img src={avatarImage} alt={manager.first_name} className={styles.avatar} />
                                     ) : (
                                         <div className={styles.avatarPlaceholder}>
                                             <User size={28} />
                                         </div>
                                     )}
-                                    <div className={`${styles.statusDot} ${styles[manager.status.toLowerCase()]}`} />
+                                    <div className={`${styles.statusDot} ${statusClass}`} />
                                 </div>
                                 <div className={styles.moreWrapper}>
                                     <button
-                                        className={`${styles.moreButton} ${activeMenuId === manager.id ? styles.activeMore : ''}`}
-                                        onClick={(e) => toggleMenu(manager.id, e)}
+                                        className={`${styles.moreButton} ${activeMenuId === manager.manager_id ? styles.activeMore : ''}`}
+                                        onClick={(e) => toggleMenu(manager.manager_id, e)}
                                     >
                                         <MoreVertical size={18} />
                                     </button>
-                                    {activeMenuId === manager.id && (
+                                    {activeMenuId === manager.manager_id && (
                                         <div className={styles.actionMenu}>
                                             <button className={styles.menuItem} onClick={() => handleViewProfile(manager)}>
                                                 <Eye size={16} />
@@ -217,7 +256,7 @@ export default function PropertyManagers() {
                             </div>
 
                             <div className={styles.managerInfo}>
-                                <h3 className={styles.managerName}>{manager.name}</h3>
+                                <h3 className={styles.managerName}>{getFullName(manager)}</h3>
                                 <div className={styles.contactInfo}>
                                     <div className={styles.contactItem}>
                                         <Mail size={14} />
@@ -236,8 +275,8 @@ export default function PropertyManagers() {
                                     <span>Assigned Properties</span>
                                 </div>
                                 <div className={styles.propertyTags}>
-                                    {manager.assignedProperties.length > 0 ? (
-                                        manager.assignedProperties.map((prop, i) => (
+                                    {props.length > 0 ? (
+                                        props.map((prop, i) => (
                                             <span key={i} className={styles.propTag}>{prop}</span>
                                         ))
                                     ) : (
@@ -248,15 +287,15 @@ export default function PropertyManagers() {
 
                             <div className={styles.cardStats}>
                                 <div className={styles.statItem}>
-                                    <span className={styles.statVal}>{manager.stats.occupancy}</span>
+                                    <span className={styles.statVal}>90%</span>
                                     <span className={styles.statLbl}>Occupancy</span>
                                 </div>
                                 <div className={styles.statItem}>
-                                    <span className={styles.statVal}>{manager.stats.resolvedTickets}</span>
+                                    <span className={styles.statVal}>45</span>
                                     <span className={styles.statLbl}>Resolved</span>
                                 </div>
                                 <div className={styles.statItem}>
-                                    <span className={styles.statVal}>{manager.stats.rating}</span>
+                                    <span className={styles.statVal}>4.8</span>
                                     <span className={styles.statLbl}>Rating</span>
                                 </div>
                             </div>
@@ -266,7 +305,7 @@ export default function PropertyManagers() {
                                 <ArrowUpRight size={16} />
                             </button>
                         </div>
-                    ))}
+                    )})}
                 </div>
             ) : (
                 <div className={styles.tableContainer}>
@@ -282,23 +321,30 @@ export default function PropertyManagers() {
                             </tr>
                         </thead>
                         <tbody>
-                            {visibleManagers.map((manager) => (
-                                <tr key={manager.id}>
+                            {visibleManagers.map((manager) => {
+                                const avatarImage = manager.attachments?.length > 0
+                                    ? `http://localhost:3009/public/upload/attachments_local/${manager.attachments[0].file_path}`
+                                    : null;
+                                const props = Array.isArray(manager.assigned_properties) ? manager.assigned_properties : [];
+                                const statusClass = manager.status === 'Active' ? styles.active : manager.status === 'On Leave' ? styles.pending : styles.inactive;
+
+                                return (
+                                <tr key={manager.manager_id}>
                                     <td>
                                         <div className={styles.tableUserCell}>
                                             <div className={styles.tableAvatarWrapper}>
-                                                {manager.image ? (
-                                                    <img src={manager.image} alt={manager.name} className={styles.tableAvatar} />
+                                                {avatarImage ? (
+                                                    <img src={avatarImage} alt={manager.first_name} className={styles.tableAvatar} />
                                                 ) : (
                                                     <div className={styles.tableAvatarPlaceholder}>
                                                         <User size={18} />
                                                     </div>
                                                 )}
-                                                <div className={`${styles.tableStatusDot} ${styles[manager.status.toLowerCase()]}`} />
+                                                <div className={`${styles.tableStatusDot} ${statusClass}`} />
                                             </div>
                                             <div className={styles.tableNameInfo}>
-                                                <div className={styles.tableName}>{manager.name}</div>
-                                                <div className={styles.tableId}>ID: PM-{manager.id.toString().padStart(3, '0')}</div>
+                                                <div className={styles.tableName}>{getFullName(manager)}</div>
+                                                <div className={styles.tableId}>ID: {manager.employee_id || `PM-${manager.manager_id}`}</div>
                                             </div>
                                         </div>
                                     </td>
@@ -316,11 +362,11 @@ export default function PropertyManagers() {
                                     </td>
                                     <td>
                                         <div className={styles.tablePropTags}>
-                                            {manager.assignedProperties.slice(0, 2).map((prop, i) => (
+                                            {props.slice(0, 2).map((prop, i) => (
                                                 <span key={i} className={styles.tablePropTag}>{prop}</span>
                                             ))}
-                                            {manager.assignedProperties.length > 2 && (
-                                                <span className={styles.moreProps}>+{manager.assignedProperties.length - 2} more</span>
+                                            {props.length > 2 && (
+                                                <span className={styles.moreProps}>+{props.length - 2} more</span>
                                             )}
                                         </div>
                                     </td>
@@ -328,17 +374,17 @@ export default function PropertyManagers() {
                                         <div className={styles.tableStats}>
                                             <div className={styles.tableStatItem}>
                                                 <span className={styles.tableStatLbl}>Occ:</span>
-                                                <span className={styles.tableStatVal}>{manager.stats.occupancy}</span>
+                                                <span className={styles.tableStatVal}>90%</span>
                                             </div>
                                             <div className={styles.tableStatItem}>
                                                 <span className={styles.tableStatLbl}>Rating:</span>
-                                                <span className={styles.tableStatVal}>{manager.stats.rating}</span>
+                                                <span className={styles.tableStatVal}>4.8</span>
                                             </div>
                                         </div>
                                     </td>
                                     <td>
-                                        <span className={`${styles.statusBadgeTable} ${styles[manager.status.toLowerCase()]}`}>
-                                            {manager.status}
+                                        <span className={`${styles.statusBadgeTable} ${statusClass}`}>
+                                            {manager.status || 'Active'}
                                         </span>
                                     </td>
                                     <td>
@@ -355,7 +401,7 @@ export default function PropertyManagers() {
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                            )})}
                         </tbody>
                     </table>
                 </div>
@@ -385,7 +431,7 @@ export default function PropertyManagers() {
                         </div>
                         <h2 className={styles.modalTitle}>Terminate Access?</h2>
                         <p className={styles.modalText}>
-                            Are you sure you want to terminate access for <strong>{deletingManager?.name}</strong>?<br />
+                            Are you sure you want to terminate access for <strong>{getFullName(deletingManager)}</strong>?<br />
                             This action cannot be undone.
                         </p>
                         <div className={styles.modalActions}>

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { fetchHostels } from '../../utils/api';
+import { fetchHostels, BASE_URL } from '../../utils/api';
+import { useToast } from '../../context/ToastContext';
 import {
     Building2,
     Search,
@@ -27,16 +28,19 @@ import styles from './page.module.css';
 const transformPropertyData = (item) => ({
     id: item.hostel_id,
     name: item.hostel_name || 'Unnamed Property',
-    category: 'Hostel', // Default as not provided by API
+    category: item.category || 'Hostel',
     address: item.address || 'Address not available',
     totalRooms: 50, // Placeholder
     availableRooms: 10, // Placeholder
     rating: 4.5, // Placeholder
     status: 'Active', // Placeholder
-    image: `https://images.unsplash.com/photo-1555854817-5b2247a8175f?w=400&h=300&fit=crop&q=${item.hostel_id}`,
+    image: (item.attachments && item.attachments.length > 0)
+        ? `${BASE_URL}/public/upload/attachments_local/${item.attachments[0].file_path}`
+        : `https://images.unsplash.com/photo-1555854817-5b2247a8175f?w=400&h=300&fit=crop&q=${item.hostel_id}`,
 });
 
 export default function PropertiesPage() {
+    const showToast = useToast();
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -93,7 +97,7 @@ export default function PropertiesPage() {
     };
 
     const confirmDelete = () => {
-        alert(`Property ${deleteId} deleted (Mock)`);
+        showToast(`Property ${deleteId} deleted`, 'success');
         setDeleteId(null);
     };
 

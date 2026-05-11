@@ -33,7 +33,12 @@ export default function Header({ collapsed, onMenuToggle }) {
                     </button>
                     <div className={styles.searchBar}>
                         <Search size={15} className={styles.searchIcon} />
-                        <input type="text" placeholder="Search properties, bookings, customers…" className={styles.searchInput} />
+                        <input
+                            type="text"
+                            placeholder="Search properties, bookings, customers…"
+                            className={styles.searchInput}
+                            suppressHydrationWarning
+                        />
                     </div>
                 </div>
 

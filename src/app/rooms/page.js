@@ -1,15 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     Plus, Search, Building2, BedDouble, Users, Trash2, Edit3, Eye, Filter,
     ChevronDown, MoreVertical, X, AlertTriangle, Save, LayoutGrid, Table, Check
 } from 'lucide-react';
 import Header from '@/components/Header';
-import { dummyRooms, roomTypes, roomStatuses, roomAmenities } from './data';
 import CustomSelect from '../../components/CustomSelect';
 import styles from './page.module.css';
+import { fetchRooms, addRoom, updateRoom } from '@/utils/api';
+import { useToast } from '@/context/ToastContext';
 
 const initialRoomData = {
     roomNumber: '',
@@ -25,9 +26,16 @@ const initialRoomData = {
     description: ''
 };
 
+const roomTypes = ['Single', 'Double', 'Triple', 'Studio'];
+const roomStatuses = ['Available', 'Full', 'Maintenance'];
+const roomAmenities = ['WiFi', 'AC', 'Attached Bath', 'TV', 'Balcony'];
+
 export default function RoomsPage() {
     const router = useRouter();
-    const [rooms, setRooms] = useState(dummyRooms);
+    const showToast = useToast();
+    const [rooms, setRooms] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('All');
     const [statusFilter, setStatusFilter] = useState('All');
@@ -39,6 +47,41 @@ export default function RoomsPage() {
     const [formData, setFormData] = useState(initialRoomData);
     const [viewMode, setViewMode] = useState('grid');
     const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+
+    useEffect(() => {
+        loadRooms();
+    }, []);
+
+    const loadRooms = async () => {
+        setLoading(true);
+        try {
+            const response = await fetchRooms({ limit: 100 });
+            if (response.settings.success) {
+                const mapped = response.data.rooms.map(r => ({
+                    id: String(r.room_id),
+                    roomNumber: r.room_number,
+                    propertyName: r.hostel_name || 'N/A',
+                    type: r.room_type,
+                    capacity: Number(r.total_beds),
+                    currentOccupants: 0, // Need occupants count from backend
+                    pricePerMonth: 5000, // Missing in DB? Using placeholder
+                    status: 'Available',
+                    floor: r.floor_number || 'N/A',
+                    amenities: [],
+                    description: '',
+                    room_id: r.room_id
+                }));
+                setRooms(mapped);
+            } else {
+                setRooms([]);
+            }
+        } catch (err) {
+            console.error(err);
+            setError('Failed to load rooms');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const filteredRooms = rooms.filter(room => {
         const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -72,10 +115,15 @@ export default function RoomsPage() {
         setActiveMenuId(null);
     };
 
-    const confirmDelete = () => {
-        setRooms(rooms.filter(r => r.id !== deletingRoom.id));
-        setShowDeleteModal(false);
-        setDeletingRoom(null);
+    const confirmDelete = async () => {
+        try {
+            await deleteRoom(deletingRoom.room_id);
+            loadRooms();
+            setShowDeleteModal(false);
+            setDeletingRoom(null);
+        } catch (err) {
+            showToast('Failed to delete room', 'error');
+        }
     };
 
     const handleInputChange = (e) => {
@@ -92,20 +140,27 @@ export default function RoomsPage() {
         });
     };
 
-    const handleSaveRoom = (e) => {
+    const handleSaveRoom = async (e) => {
         e.preventDefault();
-        if (editingRoom) {
-            setRooms(rooms.map(r => r.id === editingRoom.id ? { ...formData, id: editingRoom.id } : r));
-        } else {
-            const newRoom = {
-                ...formData,
-                id: Date.now(),
-                // For dummy, just use the property name if provided or a default
-                propertyName: formData.propertyName || 'New Property'
+        try {
+            const body = {
+                room_number: formData.roomNumber,
+                room_type: formData.type,
+                total_beds: formData.capacity,
+                hostel_id: 1, // Need property selection logic
+                floor_id: 1, // Need floor selection logic
             };
-            setRooms([newRoom, ...rooms]);
+
+            if (editingRoom) {
+                await updateRoom(editingRoom.room_id, body);
+            } else {
+                await addRoom(body);
+            }
+            loadRooms();
+            handleCloseModal();
+        } catch (err) {
+            showToast('Failed to save room', 'error');
         }
-        handleCloseModal();
     };
 
     return (
@@ -188,7 +243,11 @@ export default function RoomsPage() {
                     </div>
                 </div>
 
-                {viewMode === 'grid' ? (
+                {loading ? (
+                    <div style={{ textAlign: 'center', padding: '100px' }}>Loading...</div>
+                ) : error ? (
+                    <div style={{ textAlign: 'center', padding: '100px', color: '#ef4444' }}>{error}</div>
+                ) : viewMode === 'grid' ? (
                     <div className={styles.roomsGrid}>
                         {filteredRooms.map((room) => {
                             const occupancyPercent = (room.currentOccupants / room.capacity) * 100;

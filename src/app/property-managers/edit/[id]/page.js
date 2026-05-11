@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState, use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { fetchPropertyManagerDetails, updatePropertyManager } from '../../../../utils/api';
+import { useToast } from '../../../../context/ToastContext';
 import {
     User,
     Mail,
@@ -32,45 +34,143 @@ const tabs = [
     { id: 5, label: 'Account Security', icon: <Lock size={16} /> },
 ];
 
-export default function EditPropertyManagerPage({ params }) {
+export default function EditPropertyManagerPage({ params: paramsPromise }) {
+    const params = use(paramsPromise);
     const router = useRouter();
-    const { id } = use(params);
+    const showToast = useToast();
+    const { id } = params;
     const [activeTab, setActiveTab] = useState(1);
 
-    // Mock data fetching based on id
+    const [profileFile, setProfileFile] = useState(null);
+    const [profilePreview, setProfilePreview] = useState(null);
+
+    const [isFetching, setIsFetching] = useState(true);
     const [formData, setFormData] = useState({
-        firstName: id === '1' ? 'Aarbaj' : 'Staff',
-        lastName: id === '1' ? 'Mulla' : 'Member',
+        firstName: '',
+        lastName: '',
         gender: 'Male',
-        dob: '1995-05-15',
-        email: id === '1' ? 'aarbaj@hostel.com' : 'staff@hostel.com',
-        phone: '+91 98765 43210',
+        dob: '',
+        email: '',
+        phone: '',
         altPhone: '',
-        address: '123, Sector 4, HSR Layout',
-        city: 'Bangalore',
-        state: 'Karnataka',
-        employeeId: `PM-2024-${id.toString().padStart(3, '0')}`,
+        address: '',
+        city: '',
+        state: '',
+        employeeId: '',
         designation: 'Property Manager',
-        joiningDate: '2024-01-10',
-        salary: '45000',
+        joiningDate: '',
+        salary: '',
         role: 'Manager',
         status: 'Active',
-        username: id === '1' ? 'aarbaj_pm' : 'staff_pm',
+        username: '',
         password: '',
-        assignedProperties: ['Sunset Heights', 'Green Valley PG'],
+        assignedProperties: [],
     });
+
+    useEffect(() => {
+        const loadDetail = async () => {
+            try {
+                const res = await fetchPropertyManagerDetails(id);
+                const data = res?.data?.manager_details || res?.data;
+                if (data && typeof data === 'object' && !Array.isArray(data)) {
+                    if (data.attachments && data.attachments.length > 0) {
+                        setProfilePreview(`http://localhost:3009/public/upload/attachments_local/${data.attachments[0].file_path}`);
+                    }
+                    setFormData({
+                        firstName: data.first_name || '',
+                        lastName: data.last_name || '',
+                        gender: data.gender || 'Male',
+                        dob: data.dob ? data.dob.split('T')[0] : '',
+                        email: data.email || '',
+                        phone: data.phone || '',
+                        altPhone: data.alt_phone || '',
+                        address: data.address || '',
+                        city: data.city || '',
+                        state: data.state || '',
+                        employeeId: data.employee_id || '',
+                        designation: data.designation || 'Property Manager',
+                        joiningDate: data.joining_date ? data.joining_date.split('T')[0] : '',
+                        salary: data.salary || '',
+                        role: data.role || 'Manager',
+                        status: data.status || 'Active',
+                        username: data.username || '',
+                        password: '', // do not prepopulate password hash
+                        assignedProperties: Array.isArray(data.assigned_properties) ? data.assigned_properties : [],
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            setIsFetching(false);
+        };
+        if (id) loadDetail();
+    }, [id]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        console.log('Updating Property Manager:', formData);
-        alert('Property Manager updated successfully!');
-        router.push('/property-managers');
+    const handleProfileFileChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setProfileFile(file);
+        setProfilePreview(URL.createObjectURL(file));
     };
+
+    const handleRemoveProfilePreview = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setProfileFile(null);
+        setProfilePreview(null);
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        
+        let submitData = new FormData();
+        submitData.append('first_name', formData.firstName);
+        submitData.append('last_name', formData.lastName);
+        submitData.append('gender', formData.gender);
+        if (formData.dob) submitData.append('dob', formData.dob);
+        submitData.append('email', formData.email);
+        submitData.append('phone', formData.phone);
+        if (formData.altPhone) submitData.append('alt_phone', formData.altPhone);
+        submitData.append('address', formData.address);
+        submitData.append('city', formData.city);
+        submitData.append('state', formData.state);
+        submitData.append('employee_id', formData.employeeId);
+        submitData.append('designation', formData.designation);
+        if (formData.joiningDate) submitData.append('joining_date', formData.joiningDate);
+        submitData.append('salary', formData.salary || 0);
+        submitData.append('role', formData.role);
+        submitData.append('status', formData.status);
+        submitData.append('username', formData.username);
+        if (formData.password) submitData.append('password', formData.password);
+        
+        submitData.append('assigned_properties', JSON.stringify(formData.assignedProperties));
+        
+        if (profileFile) {
+            submitData.append('files', profileFile);
+        }
+
+        try {
+            const res = await updatePropertyManager(id, submitData, true);
+            if (res?.settings?.success === 1) {
+                showToast('Property Manager updated successfully!', 'success');
+                router.push('/property-managers');
+            } else {
+                showToast(res?.settings?.message || 'Failed to update manager', 'error');
+            }
+        } catch (err) {
+            console.error('Submit error:', err);
+            showToast('Failed to update manager: ' + err.message, 'error');
+        }
+    };
+
+    if (isFetching) {
+        return <div className={styles.pageContainer} style={{padding: '50px', textAlign: 'center'}}>Loading details...</div>;
+    }
 
     return (
         <div className={styles.pageContainer}>
@@ -106,6 +206,40 @@ export default function EditPropertyManagerPage({ params }) {
                         <div className={styles.sectionHeader}>
                             <h2 className={styles.sectionTitle}>Personal Information</h2>
                         </div>
+                        
+                        <div style={{ marginBottom: '24px' }}>
+                            <label style={{ fontSize: '13px', fontWeight: '700', color: '#475569', marginBottom: '10px', display: 'block' }}>Profile Image</label>
+                            <div className={styles.uploadWrapper} style={{ position: 'relative', height: '160px', maxWidth: '300px' }}>
+                                <input 
+                                    type="file" 
+                                    accept="image/png, image/jpeg, image/jpg, image/webp" 
+                                    onChange={handleProfileFileChange}
+                                    style={{
+                                        position: 'absolute', width: '100%', height: '100%', 
+                                        opacity: 0, cursor: 'pointer', zIndex: 10
+                                    }}
+                                />
+                                <div className={styles.uploadLarge} style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#f8fafc', border: '2px dashed #cbd5e1', borderRadius: '12px' }}>
+                                    <Camera size={24} color="#64748b" style={{ marginBottom: '8px' }} />
+                                    <span style={{ fontSize: '13px', color: '#64748b' }}>Click or drop image</span>
+                                </div>
+                            </div>
+                            {profilePreview && (
+                                <div className={styles.uploadPreview} style={{ marginTop: '10px', width: '160px', height: '160px' }}>
+                                    <div className={styles.placeholderBox} style={{ overflow: 'hidden', padding: 0, position: 'relative', width: '100%', height: '100%', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                        <button 
+                                            type="button"
+                                            onClick={handleRemoveProfilePreview}
+                                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(75, 85, 99, 0.8)', color: '#fff', border: 'none', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10 }}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                        <img src={profilePreview} alt="Profile preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <div className={styles.grid}>
                             <div className={styles.formGroup}>
                                 <label>First Name *</label>

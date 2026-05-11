@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import styles from './page.module.css';
 import CustomSelect from '../../../components/CustomSelect';
+import { useToast } from '../../../context/ToastContext';
 
 const tabs = [
     { id: 1, label: 'Personal Info', icon: <User size={16} /> },
@@ -35,6 +36,7 @@ const tabs = [
 
 export default function NewHousekeeperPage() {
     const router = useRouter();
+    const showToast = useToast();
     const [activeTab, setActiveTab] = useState(1);
     const [formData, setFormData] = useState({
         firstName: '',
@@ -65,7 +67,7 @@ export default function NewHousekeeperPage() {
     const handleSubmit = (e) => {
         e.preventDefault();
         console.log('Registering Housekeeper:', formData);
-        alert('Housekeeper added successfully!');
+        showToast('Housekeeper added successfully!', 'success');
         router.push('/housekeepers');
     };
 
